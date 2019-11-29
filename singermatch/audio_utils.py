@@ -2,7 +2,6 @@ import librosa
 import librosa.display
 import soundfile
 import vamp
-import os
 import math
 from matplotlib import pyplot as plt
 import numpy as np
@@ -55,12 +54,6 @@ class AudioUtils(object):
                 dist += 1/44100.0
                 new_y.append(s)
         return np.array(new_y), sr
-
-    def save_processed_audio(self, input_path: str, output_path: str):
-        y, sr = librosa.load(input_path)
-        y, sr = self.melodia_filter(y, sr)
-        y, sr = self.load_vocal_audio(y, sr)
-        soundfile.write(output_path, y, sr)
 
     def save_sliced_audio(self, input_path: str, output_prefix: str, interval=30):
         y, sr = librosa.load(input_path)
