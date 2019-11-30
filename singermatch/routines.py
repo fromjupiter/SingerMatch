@@ -1,14 +1,23 @@
 import librosa
 import os
-
+import subprocess
 import soundfile
-
+import pandas as pd
 import audio_utils
-import random
 import numpy as np
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from itertools import repeat
 import math
+import json
+import pickle
+
+
+def flatten(l):
+    for el in l:
+        if isinstance(el, collections.Iterable) and not isinstance(el, (str, bytes)):
+            yield from flatten(el)
+        else:
+            yield el
 
 
 class Routines(object):
@@ -19,6 +28,7 @@ class Routines(object):
         self.original_mp3_dir = config['DEFAULT']['original_mp3_dir']
         self.filtered_mp3_dir = config['DEFAULT']['filtered_mp3_dir']
         self.clipped_mp3_dir = config['DEFAULT']['clipped_mp3_dir']
+        self.essentia_feature_dir = config['DEFAULT']['essentia_feature_dir']
         self.cqt_dir = config['DEFAULT']['cqt_dir']
         self.utils = audio_utils.AudioUtils()
 
@@ -168,11 +178,51 @@ class Routines(object):
     def extract_essentia_features(self, skip=0):
         print("skipping {} lines".format(skip))
         count = 0
-        with open(self.original_mp3_dir + '/train.list', 'r') as f, \
-                open(self.workspace + '/essentia_train.data', 'a' if skip > 0 else 'w') as out:
+        cmd = self.workspace + "/streaming_extractor_music.exe {} {}"
+        with open(self.original_mp3_dir + '/all.list', 'r') as f:
             for l in f:
                 count += 1
                 if count <= skip:
                     continue
-                lbl = l.split('/')[0]
-                pass
+                l = '/' + l.strip()
+                input_path = self.original_mp3_dir + l + '.mp3'
+                output_path = self.essentia_feature_dir + l + '.json'
+                os.makedirs(os.path.dirname(output_path), exist_ok=True)
+                subprocess.call(cmd.format(input_path, output_path))
+                print("line {}, extracted essentia features for song {}".format(count, l))
+
+    def gen_essentia_train_set(self):
+        ohc = {'A': [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+               'A#': [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+               'B': [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+               'C': [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+               'C#': [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+               'D': [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0],
+               'D#': [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+               'E': [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
+               'F': [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
+               'F#': [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+               'G': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
+               'G#': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+               }
+        res = []
+        with open(self.original_mp3_dir + '/all.list', 'r') as f:
+            for l in f:
+                l = '/' + l.strip()
+                json_path = self.essentia_feature_dir + l + '.json'
+                with open(json_path, 'r') as jf:
+                    data = json.load(jf, object_pairs_hook=OrderedDict)
+                    data.pop('metadata')
+                    data = pd.io.json.json_normalize(data, sep='_')
+                row = data.values.tolist()[0]
+                # remove last third and fourth attributes
+                row[-4] = row[-2]
+                row[-3] = row[-1]
+                row = row[:-2]
+                # scale: major or minor
+                row[-1] = 0 if row[-1] == 'minor' else 1
+                # one hot encode key
+                row[-2] = ohc.get(row[-2], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+                res.append(row)
+        with open(self.essentia_feature_dir+'/train.data','wb') as bf:
+            pickle.dump(res, bf)

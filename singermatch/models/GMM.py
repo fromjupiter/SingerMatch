@@ -17,7 +17,7 @@ def train_GMM(dump_dir):
     # Train model
     X = defaultdict(list)
     label_map = defaultdict(lambda: len(label_map))
-    with open(routines.workspace+'/mfcc_train.data', 'r') as f:
+    with open(routines.mfcc_dir+'/mfcc_train.data', 'r') as f:
         for l in f:
             l = l.strip().split(' ')
             label = l[0]
