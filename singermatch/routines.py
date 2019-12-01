@@ -1,3 +1,5 @@
+import collections
+
 import librosa
 import os
 import subprocess
@@ -191,7 +193,7 @@ class Routines(object):
                 subprocess.call(cmd.format(input_path, output_path))
                 print("line {}, extracted essentia features for song {}".format(count, l))
 
-    def gen_essentia_train_set(self):
+    def gen_essentia_data_set(self):
         ohc = {'A': [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                'A#': [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                'B': [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -205,24 +207,29 @@ class Routines(object):
                'G': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
                'G#': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
                }
-        res = []
-        with open(self.original_mp3_dir + '/all.list', 'r') as f:
-            for l in f:
-                l = '/' + l.strip()
-                json_path = self.essentia_feature_dir + l + '.json'
-                with open(json_path, 'r') as jf:
-                    data = json.load(jf, object_pairs_hook=OrderedDict)
-                    data.pop('metadata')
-                    data = pd.io.json.json_normalize(data, sep='_')
-                row = data.values.tolist()[0]
-                # remove last third and fourth attributes
-                row[-4] = row[-2]
-                row[-3] = row[-1]
-                row = row[:-2]
-                # scale: major or minor
-                row[-1] = 0 if row[-1] == 'minor' else 1
-                # one hot encode key
-                row[-2] = ohc.get(row[-2], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-                res.append(row)
-        with open(self.essentia_feature_dir+'/train.data','wb') as bf:
-            pickle.dump(res, bf)
+        for name in ('train', 'test'):
+            res = []
+            count = 0
+            with open('{}/{}.list'.format(self.original_mp3_dir, name), 'r') as f:
+                for l in f:
+                    count += 1
+                    l = '/' + l.strip()
+                    json_path = self.essentia_feature_dir + l + '.json'
+                    with open(json_path, 'r') as jf:
+                        data = json.load(jf, object_pairs_hook=OrderedDict)
+                        data.pop('metadata')
+                        data['rhythm'].pop('beats_position')
+                        data = pd.io.json.json_normalize(data, sep='_')
+                    row = data.values.tolist()[0]
+                    # remove last third and fourth attributes
+                    row[-4] = row[-2]
+                    row[-3] = row[-1]
+                    row = row[:-2]
+                    # scale: major or minor
+                    row[-1] = 0 if row[-1] == 'minor' else 1
+                    # one hot encode key
+                    row[-2] = ohc.get(row[-2], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+                    res.append(list(flatten(row)))
+                    print("line {}, completed song {}.".format(count, l))
+            with open('{}/{}.data'.format(self.essentia_feature_dir, name), 'wb') as bf:
+                pickle.dump(res, bf)

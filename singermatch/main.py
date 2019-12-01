@@ -12,8 +12,8 @@ parser.add_argument('routine', nargs='*', default='test', help='Run predefined r
 parser.add_argument('--skip', type=int, default=0, help='Skip lines')
 args = parser.parse_args()
 
-if 'gen_essentia_train_set' == args.routine[0]:
-    routines.gen_essentia_train_set()
+if 'gen_essentia_data_set' == args.routine[0]:
+    routines.gen_essentia_data_set()
 elif 'extract_essentia_features' == args.routine[0]:
     routines.extract_essentia_features(skip=args.skip)
 elif 'gen_mfcc_train_set_vocal' == args.routine[0]:
